@@ -105,7 +105,7 @@ def normalize_metadata_value(raw_value: RawMetadataValue):
             raise DagsterInvalidMetadata(
                 "Value is a dictionary but is not JSON serializable. "
                 "Consider wrapping the value with the appropriate MetadataValue type."
-            )
+            ) from None
 
     raise DagsterInvalidMetadata(
         f"Its type was {type(raw_value)}. Consider wrapping the value with the appropriate "
