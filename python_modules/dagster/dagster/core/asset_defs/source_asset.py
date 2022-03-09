@@ -1,8 +1,8 @@
-from typing import Any, Dict, NamedTuple, Optional, Sequence, cast
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Union
 
 import dagster.check as check
 from dagster.core.definitions.events import AssetKey
-from dagster.core.definitions.metadata import MetadataEntry, normalize_metadata
+from dagster.core.definitions.metadata import MetadataEntry, MetadataMapping, MetadataUserInput, PartitionMetadataEntry, normalize_metadata
 from dagster.core.definitions.partition import PartitionsDefinition
 
 
@@ -11,7 +11,7 @@ class SourceAsset(
         "_SourceAsset",
         [
             ("key", AssetKey),
-            ("metadata_entries", Sequence[MetadataEntry]),
+            ("metadata_entries", Sequence[Union[MetadataEntry, PartitionMetadataEntry]]),
             ("io_manager_key", str),
             ("description", Optional[str]),
             ("partitions_def", Optional[PartitionsDefinition]),
@@ -34,17 +34,14 @@ class SourceAsset(
     def __new__(
         cls,
         key: AssetKey,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[MetadataUserInput] = None,
         io_manager_key: str = "io_manager",
         description: Optional[str] = None,
         partitions_def: Optional[PartitionsDefinition] = None,
     ):
 
         metadata = check.opt_dict_param(metadata, "metadata", key_type=str)
-        metadata_entries = cast(
-            Sequence[MetadataEntry],
-            check.is_list(normalize_metadata(metadata, [], allow_invalid=True), MetadataEntry),
-        )
+        metadata_entries = normalize_metadata(metadata, [], allow_invalid=True)
 
         return super().__new__(
             cls,
@@ -56,5 +53,6 @@ class SourceAsset(
         )
 
     @property
-    def metadata(self) -> Dict[str, Any]:
-        return {entry.label: entry.entry_data for entry in self.metadata_entries}
+    def metadata(self) -> MetadataMapping:
+        # PartitionMetadataEntry (unstable API) case is unhandled
+        return {entry.label: entry.entry_data for entry in self.metadata_entries}   # type: ignore
