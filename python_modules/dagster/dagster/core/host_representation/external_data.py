@@ -23,6 +23,7 @@ from dagster.core.definitions import (
     ScheduleDefinition,
 )
 from dagster.core.definitions.events import AssetKey
+from dagster.core.definitions.metadata import MetadataEntry
 from dagster.core.definitions.mode import DEFAULT_MODE_NAME
 from dagster.core.definitions.node_definition import NodeDefinition
 from dagster.core.definitions.partition import PartitionScheduleDefinition, ScheduleType
@@ -65,23 +66,23 @@ class ExternalRepositoryData(
         return super(ExternalRepositoryData, cls).__new__(
             cls,
             name=check.str_param(name, "name"),
-            external_pipeline_datas=check.list_param(
+            external_pipeline_datas=check.sequence_param(
                 external_pipeline_datas, "external_pipeline_datas", of_type=ExternalPipelineData
             ),
-            external_schedule_datas=check.list_param(
+            external_schedule_datas=check.sequence_param(
                 external_schedule_datas, "external_schedule_datas", of_type=ExternalScheduleData
             ),
-            external_partition_set_datas=check.list_param(
+            external_partition_set_datas=check.sequence_param(
                 external_partition_set_datas,
                 "external_partition_set_datas",
                 of_type=ExternalPartitionSetData,
             ),
-            external_sensor_datas=check.opt_list_param(
+            external_sensor_datas=check.opt_sequence_param(
                 external_sensor_datas,
                 "external_sensor_datas",
                 of_type=ExternalSensorData,
             ),
-            external_asset_graph_data=check.opt_list_param(
+            external_asset_graph_data=check.opt_sequence_param(
                 external_asset_graph_data,
                 "external_asset_graph_dats",
                 of_type=ExternalAssetNode,
@@ -684,14 +685,15 @@ class ExternalAssetNode(
         "_ExternalAssetNode",
         [
             ("asset_key", AssetKey),
-            ("dependencies", List[ExternalAssetDependency]),
-            ("depended_by", List[ExternalAssetDependedBy]),
+            ("dependencies", Sequence[ExternalAssetDependency]),
+            ("depended_by", Sequence[ExternalAssetDependedBy]),
             ("op_name", Optional[str]),
             ("op_description", Optional[str]),
-            ("job_names", List[str]),
+            ("job_names", Sequence[str]),
             ("partitions_def_data", Optional[ExternalPartitionsDefinitionData]),
             ("output_name", Optional[str]),
             ("output_description", Optional[str]),
+            ("metadata_entries", Sequence[MetadataEntry]),
         ],
     )
 ):
@@ -703,34 +705,38 @@ class ExternalAssetNode(
     def __new__(
         cls,
         asset_key: AssetKey,
-        dependencies: List[ExternalAssetDependency],
-        depended_by: List[ExternalAssetDependedBy],
+        dependencies: Sequence[ExternalAssetDependency],
+        depended_by: Sequence[ExternalAssetDependedBy],
         op_name: Optional[str] = None,
         op_description: Optional[str] = None,
-        job_names: Optional[List[str]] = None,
+        job_names: Optional[Sequence[str]] = None,
         partitions_def_data: Optional[ExternalPartitionsDefinitionData] = None,
         output_name: Optional[str] = None,
         output_description: Optional[str] = None,
+        metadata_entries: Optional[Sequence[MetadataEntry]] = None,
     ):
         return super(ExternalAssetNode, cls).__new__(
             cls,
             asset_key=check.inst_param(asset_key, "asset_key", AssetKey),
-            dependencies=check.opt_list_param(
+            dependencies=check.opt_sequence_param(
                 dependencies, "dependencies", of_type=ExternalAssetDependency
             ),
-            depended_by=check.opt_list_param(
+            depended_by=check.opt_sequence_param(
                 depended_by, "depended_by", of_type=ExternalAssetDependedBy
             ),
             op_name=check.opt_str_param(op_name, "op_name"),
             op_description=check.opt_str_param(
                 op_description or output_description, "op_description"
             ),
-            job_names=check.opt_list_param(job_names, "job_names", of_type=str),
+            job_names=check.opt_sequence_param(job_names, "job_names", of_type=str),
             partitions_def_data=check.opt_inst_param(
                 partitions_def_data, "partitions_def_data", ExternalPartitionsDefinitionData
             ),
             output_name=check.opt_str_param(output_name, "output_name"),
             output_description=check.opt_str_param(output_description, "output_description"),
+            metadata_entries=check.opt_sequence_param(
+                metadata_entries, "metadata_entries", of_type=MetadataEntry
+            ),
         )
 
 
@@ -842,6 +848,10 @@ def external_asset_graph_from_defs(
                 " and as a non-source asset"
             )
 
+        # TODO: For now we are dropping partition metadata entries
+        metadata_entries = [
+            entry for entry in source_asset.metadata_entries if isinstance(entry, MetadataEntry)
+        ]
         asset_nodes.append(
             ExternalAssetNode(
                 asset_key=source_asset.key,
@@ -849,6 +859,7 @@ def external_asset_graph_from_defs(
                 depended_by=dep_by[source_asset.key],
                 job_names=[],
                 op_description=source_asset.description,
+                metadata_entries=metadata_entries,
             )
         )
 
@@ -863,7 +874,7 @@ def external_asset_graph_from_defs(
             ]
         ] = None
 
-        if output_def and output_def.asset_partitions_def:
+        if output_def.asset_partitions_def:
             partitions_def = output_def.asset_partitions_def
             if partitions_def:
                 if isinstance(partitions_def, TimeWindowPartitionsDefinition):
@@ -890,6 +901,7 @@ def external_asset_graph_from_defs(
                 partitions_def_data=partitions_def_data,
                 output_name=output_def.name,
                 output_description=output_def.description,
+                metadata_entries=output_def.metadata_entries,
             )
         )
 

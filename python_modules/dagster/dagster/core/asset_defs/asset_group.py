@@ -428,7 +428,11 @@ class AssetGroup(
         assets: List[AssetsDefinition] = []
         for module in modules:
             module_assets, module_source_assets = _find_assets_in_module(module)
-            for asset in [*module_assets, *module_source_assets]:
+            all_assets: List[Union[AssetsDefinition, SourceAsset]] = [
+                *module_assets,
+                *module_source_assets,
+            ]
+            for asset in all_assets:
                 if not id(asset) in asset_ids:
                     asset_ids.add(id(asset))
                     keys = asset.asset_keys if isinstance(asset, AssetsDefinition) else [asset.key]
